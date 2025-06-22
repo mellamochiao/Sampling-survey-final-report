@@ -162,3 +162,93 @@ ggplot(coverage_long, aes(x = SampleSize, y = Coverage, color = Estimator, group
        color = "Variance Estimator") +
   theme_minimal() +
   theme(text = element_text(size = 14))
+
+#(4)
+set.seed(200)
+library(MASS)
+n <- 50
+rho_values <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+N <- 1000
+mu <- 50
+results_4 <- data.frame()
+for (rho in rho_values) {
+  cover_d <- 0
+  cover_g <- 0
+  for (i in 1:N) {
+    Sigma <- matrix(c(1, rho, rho, 1), 2)
+    data <- mvrnorm(n = n, mu = c(50, 50), Sigma = Sigma)
+    x <- data[,1]; y <- data[,2]
+    mu_r <- mean(y) + (mu - mean(x)) * (cov(x, y) / var(x))
+    se_d <- sd(y) / sqrt(n)
+    Sxy <- cov(x, y); Sxx <- var(x)
+    se_g <- sqrt(var(y)/n + ((mu - mean(x))^2) * (Sxy^2) / (n * Sxx^2))
+    ci_d <- c(mu_r - 1.96 * se_d, mu_r + 1.96 * se_d)
+    ci_g <- c(mu_r - 1.96 * se_g, mu_r + 1.96 * se_g)
+    if (ci_d[1] <= mu && mu <= ci_d[2]) cover_d <- cover_d + 1
+    if (ci_g[1] <= mu && mu <= ci_g[2]) cover_g <- cover_g + 1
+  }
+  results_4 <- rbind(results_4, data.frame(
+    `Cor(x, y)` = rho,
+    `Coverage: Var_d` = cover_d / N,
+    `Coverage: Var_g` = cover_g / N
+  ))
+}
+print(results_4)
+#(5)
+set.seed(200)
+library(MASS)
+library(plotly)
+n_values <- c(10, 30, 50, 100)
+rho_values <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+N <- 1000
+mu <- 50
+results_5 <- data.frame()
+for (n in n_values) {
+  for (rho in rho_values) {
+    mu_r_list <- c()
+    ybar_list <- c()
+    for (i in 1:N) {
+      Sigma <- matrix(c(1, rho, rho, 1), 2)
+      data <- mvrnorm(n = n, mu = c(50, 50), Sigma = Sigma)
+      x <- data[,1]; y <- data[,2]
+      ybar <- mean(y)
+      mu_r <- ybar + (mu - mean(x)) * (cov(x, y)/var(x))
+      mu_r_list <- c(mu_r_list, mu_r)
+      ybar_list <- c(ybar_list, ybar)
+    }
+    rel_eff <- var(ybar_list) / var(mu_r_list)
+    results_5 <- rbind(results_5, data.frame(n = n, rho = rho, rel_eff = rel_eff))
+  }
+}
+print(results_5)
+fig <- plot_ly(results_5, x = ~n, y = ~rho, z = ~rel_eff, type = "scatter3d", mode = "markers+lines",
+               marker = list(size = 4), line = list(width = 3))
+fig <- fig %>% layout(
+  scene = list(
+    xaxis = list(title = "Sample Size (n)"),
+    yaxis = list(title = "Cor(x, y)"),
+    zaxis = list(title = "Relative Efficiency")
+  ),
+  title = "3D Plot of Relative Efficiency of ȳ vs µ̂r"
+)
+fig
+install.packages("scatterplot3d")
+library(scatterplot3d)
+df <- data.frame(
+  n = rep(c(10, 30, 50, 100), each = 5),
+  rho = rep(c(0.1, 0.3, 0.5, 0.7, 0.9), times = 4),
+  rel_eff = c(
+    0.86, 0.93, 1.12, 1.63, 4.50,
+    0.91, 1.01, 1.20, 1.95, 4.81,
+    0.95, 1.05, 1.26, 1.97, 4.89,
+    0.99, 1.10, 1.29, 2.00, 4.85
+  )
+)
+scatterplot3d(x = df$n, y = df$rho, z = df$rel_eff,
+              type = "h", pch = 16,
+              color = "blue", angle = 55,
+              xlab = "Sample Size (n)",
+              ylab = "Cor(x, y)",
+              zlab = "Relative Efficiency",
+              main = "Relative Efficiency of ȳ vs µ̂r")
+
